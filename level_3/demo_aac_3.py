@@ -60,26 +60,33 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
     
     # Calculate actual bitrate from Huffman streams (not .mat file overhead)
     total_bits = 0
+    mdct_bits = 0
+    sfc_bits = 0
+    gain_bits = 0
     for frame in aac_seq_3:
         # Count bits from left channel
-        total_bits += len(frame["chl"]["stream"])  # Huffman stream for MDCT coefficients
-        total_bits += len(frame["chl"]["sfc"])      # Huffman stream for scale factors
+        mdct_bits += len(frame["chl"]["stream"])  # Huffman stream for MDCT coefficients
+        sfc_bits += len(frame["chl"]["sfc"])      # Huffman stream for scale factors
         # Count bits from right channel  
-        total_bits += len(frame["chr"]["stream"])
-        total_bits += len(frame["chr"]["sfc"])
+        mdct_bits += len(frame["chr"]["stream"])
+        sfc_bits += len(frame["chr"]["sfc"])
         # Add bits for global gains (assume 8 bits each)
         if isinstance(frame["chl"]["G"], np.ndarray):
-            total_bits += len(frame["chl"]["G"]) * 8  # 8 values for ESH
+            gain_bits += len(frame["chl"]["G"]) * 8  # 8 values for ESH
         else:
-            total_bits += 8  # 1 value for long frames
+            gain_bits += 8  # 1 value for long frames
         if isinstance(frame["chr"]["G"], np.ndarray):
-            total_bits += len(frame["chr"]["G"]) * 8
+            gain_bits += len(frame["chr"]["G"]) * 8
         else:
-            total_bits += 8
+            gain_bits += 8
         # Add bits for codebook indices (4 bits each)
-        total_bits += 8  # 4 bits per channel × 2 channels
+        gain_bits += 8  # 4 bits per channel × 2 channels
     
+    total_bits = mdct_bits + sfc_bits + gain_bits
     print(f"  Total Huffman bits: {total_bits} bits ({total_bits/8:.2f} bytes)")
+    print(f"    MDCT coefficients: {mdct_bits} bits ({100*mdct_bits/total_bits:.1f}%)")
+    print(f"    Scale factors:     {sfc_bits} bits ({100*sfc_bits/total_bits:.1f}%)")
+    print(f"    Gains/overhead:    {gain_bits} bits ({100*gain_bits/total_bits:.1f}%)")
     
     # Calculate duration in seconds
     duration_seconds = len(original_audio) / sample_rate
