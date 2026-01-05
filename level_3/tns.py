@@ -8,22 +8,37 @@ domain, improving coding quality for signals with strong temporal variations.
 
 import os
 import numpy as np
-from scipy.io import loadmat
+import scipy.io as sio
 
 
-# Load psychoacoustic band tables at module import
-_module_dir = os.path.dirname(os.path.abspath(__file__))
-_table_path = os.path.join(_module_dir, "TableB219.mat")
-
-try:
-    _tables = loadmat(_table_path)
-    TABLE_B219a = _tables["B219a"]  # For long windows (1024 MDCT coeffs)
-    TABLE_B219b = _tables["B219b"]  # For short windows (128 MDCT coeffs)
-except FileNotFoundError:
-    raise FileNotFoundError(
-        f"TableB219.mat not found in {_module_dir}. "
-        "Please ensure it exists in the level_2 folder."
-    )
+def load_table_B219():
+    """
+    Load scalefactor band tables from TableB219.mat
+    
+    Returns
+    -------
+    bands_long : np.ndarray
+        Long window bands (B219a), shape (69, 6)
+    bands_short : np.ndarray
+        Short window bands (B219b), shape (42, 6)
+    
+    Notes
+    -----
+    Each row contains:
+        [band_index, w_low, w_high, width, frequency, threshold]
+    We use columns 1 and 2 for w_low and w_high.
+    """
+    # Get the directory where this file is located
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    mat_filename = os.path.join(current_dir, "TableB219.mat")
+    
+    # Load the .mat file
+    mat_data = sio.loadmat(mat_filename)
+    
+    bands_long = mat_data['B219a']   # For OLS/LSS/LPS frames
+    bands_short = mat_data['B219b']  # For ESH frames
+    
+    return bands_long, bands_short
 
 
 def tns(frame_F_in, frame_type):
@@ -55,6 +70,9 @@ def tns(frame_F_in, frame_type):
             - (4, 1) for non-ESH frames
             - (4, 8) for ESH frames (one set per subframe)
     """
+    # Load band tables
+    bands_long, bands_short = load_table_B219()
+    
     # Normalize frame type
     frame_type = frame_type.upper()
     
@@ -67,7 +85,7 @@ def tns(frame_F_in, frame_type):
         # Process each subframe separately with short-window table (B219b)
         for s in range(num_subframes):
             X = frame_F_in[:, s].astype(np.float32).copy()
-            Y, a_q = _apply_tns_to_subframe(X, TABLE_B219b)
+            Y, a_q = _apply_tns_to_subframe(X, bands_short)
             
             frame_F_out[:, s] = Y
             tns_coeffs[:, s] = a_q
@@ -77,7 +95,7 @@ def tns(frame_F_in, frame_type):
     else:
         # Long frames (OLS, LSS, LPS): 1024 MDCT coefficients
         X = frame_F_in.flatten().astype(np.float32).copy()
-        Y, a_q = _apply_tns_to_subframe(X, TABLE_B219a)
+        Y, a_q = _apply_tns_to_subframe(X, bands_long)
         
         # Reshape back to column vector (1024, 1)
         frame_F_out = Y.reshape(-1, 1)
