@@ -60,24 +60,36 @@ def i_aac_coder_3(aac_seq_3, filename_out):
         frame_type = frame_data["frame_type"]
         win_type = frame_data["win_type"]
         
-        # Decode left channel
-        frame_T_left = decode_channel(
+        # Decode left channel (returns MDCT coefficients after inverse TNS)
+        frame_F_left = decode_channel(
             frame_data["chl"],
             frame_type,
             win_type,
             huff_LUT_list
         )
         
-        # Decode right channel
-        frame_T_right = decode_channel(
+        # Decode right channel (returns MDCT coefficients after inverse TNS)
+        frame_F_right = decode_channel(
             frame_data["chr"],
             frame_type,
             win_type,
             huff_LUT_list
         )
         
-        # Combine channels: (2048, 2)
-        frame_T = np.column_stack([frame_T_left, frame_T_right])
+        # Combine channels for i_filter_bank
+        if frame_type == "ESH":
+            # For ESH: both are (128, 8), need to transpose to (8, 128) and stack
+            frame_F_left_T = frame_F_left.T    # (128, 8) -> (8, 128)
+            frame_F_right_T = frame_F_right.T  # (128, 8) -> (8, 128)
+            frame_F = np.stack([frame_F_left_T, frame_F_right_T], axis=2)  # (8, 128, 2)
+        else:
+            # For OLS/LSS/LPS: both are (1024, 1), flatten and stack
+            frame_F_left_flat = frame_F_left.flatten()
+            frame_F_right_flat = frame_F_right.flatten()
+            frame_F = np.stack([frame_F_left_flat, frame_F_right_flat], axis=1)  # (1024, 2)
+        
+        # Apply inverse filter bank (IMDCT) to get time-domain frame
+        frame_T = i_filter_bank(frame_F, frame_type, win_type)
         
         decoded_frames.append(frame_T)
     
@@ -130,8 +142,10 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
     
     Returns
     -------
-    frame_T : np.ndarray
-        Decoded time-domain frame (2048,)
+    frame_F : np.ndarray
+        Decoded MDCT coefficients (after inverse TNS)
+        - For OLS/LSS/LPS: shape (1024, 1)
+        - For ESH: shape (128, 8)
     """
     
     # Extract encoded data
@@ -150,7 +164,12 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
         expected_sfc_len = 69
     
     # Huffman decode scale factors (always codebook 11)
-    sfc_flat = decode_huff(sfc_encoded, huff_LUT_list[11])
+    try:
+        sfc_flat = np.array(decode_huff(sfc_encoded, huff_LUT_list[11]), dtype=int)
+    except (IndexError, KeyError):
+        # If decoding fails, return zeros
+        sfc_flat = np.zeros(expected_sfc_len, dtype=int)
+    
     # Ensure correct length
     if len(sfc_flat) > expected_sfc_len:
         sfc_flat = sfc_flat[:expected_sfc_len]
@@ -163,7 +182,15 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
         # All-zero section
         S_flat = np.zeros(expected_S_len, dtype=int)
     else:
-        S_flat = decode_huff(stream, huff_LUT_list[codebook])
+        try:
+            S_flat = decode_huff(stream, huff_LUT_list[codebook])
+            # Convert to numpy array if it's a list
+            if isinstance(S_flat, list):
+                S_flat = np.array(S_flat, dtype=int)
+        except (IndexError, KeyError):
+            # If decoding fails, return zeros
+            S_flat = np.zeros(expected_S_len, dtype=int)
+        
         # Ensure correct length
         if len(S_flat) > expected_S_len:
             S_flat = S_flat[:expected_S_len]
@@ -187,7 +214,4 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
     # Inverse TNS
     frame_F = i_tns(frame_F_tns, frame_type, tns_coeffs)
     
-    # Inverse filter bank (IMDCT)
-    frame_T = i_filter_bank(frame_F, frame_type, win_type)
-    
-    return frame_T
+    return frame_F

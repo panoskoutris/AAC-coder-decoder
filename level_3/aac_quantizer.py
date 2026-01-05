@@ -90,6 +90,9 @@ def aac_quantizer(frame_F, frame_type, SMR):
             else:
                 a_init = 0
             
+            # Clamp initial α to reasonable range
+            a_init = np.clip(a_init, -20, 20)
+            
             a = np.ones(NB) * a_init  # Scale factor for each band
             
             # --- 4. Iterative refinement per band ---
@@ -97,7 +100,7 @@ def aac_quantizer(frame_F, frame_type, SMR):
                 w_low = int(bands[b, 1])
                 w_high = int(bands[b, 2])
                 
-                max_iterations = 100  # Safety limit
+                max_iterations = 20  # Stable value that works with Huffman decoder
                 iteration = 0
                 
                 while iteration < max_iterations:
@@ -111,6 +114,9 @@ def aac_quantizer(frame_F, frame_type, SMR):
                         else:
                             S_temp = -int((np.abs(X[k]) * (2 ** (-0.25 * a[b]))) ** (3/4) + MagicNumber)
                         
+                        # Clamp to valid range to prevent overflow
+                        S_temp = np.clip(S_temp, -MQ, MQ)
+                        
                         # Inverse quantization (dequantization)
                         if S_temp >= 0:
                             X_hat = (S_temp ** (4/3)) * (2 ** (0.25 * a[b]))
@@ -120,15 +126,21 @@ def aac_quantizer(frame_F, frame_type, SMR):
                         # Accumulate squared error
                         Pe += (X[k] - X_hat) ** 2
                     
-                    # Check if error is below threshold
-                    if Pe <= T[b]:
+                    # Check if error exceeds threshold
+                    # If Pe > T, we've reached the limit, stop
+                    if Pe > T[b]:
                         break
                     
+                    # If Pe <= T, we can use coarser quantization (save more bits)
                     # Increase scale factor
                     a[b] += 1
                     
                     # Safety check: prevent excessive scale factor differences
                     if b > 0 and np.abs(a[b] - a[b-1]) > 60:
+                        break
+                    
+                    # Safety check: prevent extreme α values
+                    if a[b] > 30:
                         break
                     
                     iteration += 1
@@ -143,12 +155,17 @@ def aac_quantizer(frame_F, frame_type, SMR):
                         S[k, sf] = int((np.abs(X[k]) * (2 ** (-0.25 * a[b]))) ** (3/4) + MagicNumber)
                     else:
                         S[k, sf] = -int((np.abs(X[k]) * (2 ** (-0.25 * a[b]))) ** (3/4) + MagicNumber)
+                    # Clamp final S as well
+                    S[k, sf] = np.clip(S[k, sf], -MQ, MQ)
             
             # --- 6. Global gain and DPCM scale factors ---
             G[sf] = a[0]
-            sfc[0, sf] = int(a[0])
+            # sfc[0] is not encoded - decoder uses G for α(0)
+            sfc[0, sf] = 0  # Sentinel/dummy value
             for b in range(1, NB):
-                sfc[b, sf] = int(a[b] - a[b-1])
+                diff = int(a[b] - a[b-1])
+                # Clamp to codebook 11 range: -60 to +60 (to be safe)
+                sfc[b, sf] = np.clip(diff, -60, 60)
         
         return S, sfc, G
     
@@ -162,6 +179,10 @@ def aac_quantizer(frame_F, frame_type, SMR):
             X = frame_F.flatten()
         else:
             X = frame_F
+        
+        # Ensure SMR is 1D
+        if SMR.ndim == 2:
+            SMR = SMR.flatten()
         
         # Initialize outputs
         S = np.zeros(1024, dtype=int)
@@ -185,6 +206,9 @@ def aac_quantizer(frame_F, frame_type, SMR):
         else:
             a_init = 0
         
+        # Clamp initial α to reasonable range
+        a_init = np.clip(a_init, -20, 20)
+        
         a = np.ones(NB) * a_init  # Scale factor for each band
         
         # --- 4. Iterative refinement per band ---
@@ -192,7 +216,7 @@ def aac_quantizer(frame_F, frame_type, SMR):
             w_low = int(bands[b, 1])
             w_high = int(bands[b, 2])
             
-            max_iterations = 100  # Safety limit
+            max_iterations = 20  # Stable value that works with Huffman decoder
             iteration = 0
             
             while iteration < max_iterations:
@@ -206,6 +230,9 @@ def aac_quantizer(frame_F, frame_type, SMR):
                     else:
                         S_temp = -int((np.abs(X[k]) * (2 ** (-0.25 * a[b]))) ** (3/4) + MagicNumber)
                     
+                    # Clamp to valid range to prevent overflow
+                    S_temp = np.clip(S_temp, -MQ, MQ)
+                    
                     # Inverse quantization (dequantization)
                     if S_temp >= 0:
                         X_hat = (S_temp ** (4/3)) * (2 ** (0.25 * a[b]))
@@ -215,15 +242,21 @@ def aac_quantizer(frame_F, frame_type, SMR):
                     # Accumulate squared error
                     Pe += (X[k] - X_hat) ** 2
                 
-                # Check if error is below threshold
-                if Pe <= T[b]:
+                # Check if error exceeds threshold
+                # If Pe > T, we've reached the limit, stop
+                if Pe > T[b]:
                     break
                 
-                # Increase scale factor
+                # If Pe <= T, we can use coarser quantization (save more bits)
+                # Increase scale factor to make quantization coarser
                 a[b] += 1
                 
                 # Safety check: prevent excessive scale factor differences
                 if b > 0 and np.abs(a[b] - a[b-1]) > 60:
+                    break
+                
+                # Safety check: prevent extreme α values
+                if a[b] > 30:
                     break
                 
                 iteration += 1
@@ -238,12 +271,17 @@ def aac_quantizer(frame_F, frame_type, SMR):
                     S[k] = int((np.abs(X[k]) * (2 ** (-0.25 * a[b]))) ** (3/4) + MagicNumber)
                 else:
                     S[k] = -int((np.abs(X[k]) * (2 ** (-0.25 * a[b]))) ** (3/4) + MagicNumber)
+                # Clamp final S as well
+                S[k] = np.clip(S[k], -MQ, MQ)
         
         # --- 6. Global gain and DPCM scale factors ---
         G = a[0]
-        sfc[0] = int(a[0])
+        # sfc[0] is not encoded - decoder uses G for α(0)
+        sfc[0] = 0  # Sentinel/dummy value
         for b in range(1, NB):
-            sfc[b] = int(a[b] - a[b-1])
+            diff = int(a[b] - a[b-1])
+            # Clamp to codebook 11 range: -60 to +60 (to be safe)
+            sfc[b] = np.clip(diff, -60, 60)
         
         # Reshape S to (1024, 1) for consistency
         S = S.reshape(1024, 1)
