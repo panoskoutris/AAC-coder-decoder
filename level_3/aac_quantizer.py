@@ -81,7 +81,7 @@ def aac_quantizer(frame_F, frame_type, SMR):
                 P[b] = np.sum(X[w_low:w_high+1] ** 2)
             
             # --- 2. Compute threshold T(b) = P(b) / SMR(b) ---
-            T = P / (SMR_sf + 1e-10)  # Add small epsilon to avoid division by zero
+            T = P / (SMR_sf + 1e-10)
             
             # --- 3. Initial scale factor (same for all bands) ---
             maxX = np.max(np.abs(X))
@@ -197,7 +197,7 @@ def aac_quantizer(frame_F, frame_type, SMR):
             P[b] = np.sum(X[w_low:w_high+1] ** 2)
         
         # --- 2. Compute threshold T(b) = P(b) / SMR(b) ---
-        T = P / (SMR + 1e-10)  # Add small epsilon to avoid division by zero
+        T = P / (SMR + 1e-10)
         
         # --- 3. Initial scale factor (same for all bands) ---
         maxX = np.max(np.abs(X))
