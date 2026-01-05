@@ -51,7 +51,11 @@ def aac_quantizer(frame_F, frame_type, SMR):
     # Constants
     MagicNumber = 0.4054
     MQ = 8191
-    NOISE_MARGIN = 2.0  # Allow 2.0x more noise to improve compression (sweet spot)
+    
+    # --- Tuning constants for rate/quality tradeoff ---
+    NOISE_MARGIN = 3.0        # how much above threshold we allow (was implicit 1.0)
+    DROP_ENERGY = 1e-6        # energy threshold to drop a band
+    DROP_SMR = 1.0            # SMR threshold to drop a band (linear)
     
     # Load scalefactor bands
     bands_long, bands_short = load_table_B219()

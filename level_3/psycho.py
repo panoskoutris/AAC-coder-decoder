@@ -653,8 +653,8 @@ def compute_required_snr(tb):
         Required SNR for each band in dB, shape (N_B,)
     """
     # Constants from psychoacoustic model (as defined at start of step 8)
-    NMT = 6.0   # Noise Masking Tone (dB)
-    TMN = 18.0  # Tone Masking Noise (dB)
+    NMT = 0.0   # Noise Masking Tone (dB) - was 6.0
+    TMN = 12.0  # Tone Masking Noise (dB) - was 18.0
     
     # Compute weighted SNR based on tonality
     SNR = tb * TMN + (1.0 - tb) * NMT
@@ -811,7 +811,7 @@ def compute_smr(e_band, npart):
     # *** TUNING CONSTANT ***
     # Allow more noise under the masker for better compression
     # +3 dB = 2x more noise power, +6 dB = 4x more noise power
-    NOISE_RELAX_DB = 6.0  # Sweet spot for compression vs quality
+    NOISE_RELAX_DB = 10.0  # Sweet spot for compression vs quality (try 8-10 dB)
     relax_lin = 10**(NOISE_RELAX_DB / 10.0)
     
     # Raise masking threshold (more noise allowed)
