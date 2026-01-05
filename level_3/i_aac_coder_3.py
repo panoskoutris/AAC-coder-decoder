@@ -15,7 +15,8 @@ import soundfile as sf
 from i_filter_bank import i_filter_bank
 from i_tns import i_tns
 from i_aac_quantizer import i_aac_quantizer
-from huff_utils import load_LUT, decode_huff
+from huff_utils import load_LUT
+from safe_huffman import safe_decode_huff
 
 
 def i_aac_coder_3(aac_seq_3, filename_out):
@@ -60,24 +61,30 @@ def i_aac_coder_3(aac_seq_3, filename_out):
         frame_type = frame_data["frame_type"]
         win_type = frame_data["win_type"]
         
-        # Decode left channel
-        frame_T_left = decode_channel(
+        # Decode left channel to MDCT coefficients
+        frame_F_left = decode_channel_to_mdct(
             frame_data["chl"],
             frame_type,
-            win_type,
             huff_LUT_list
         )
         
-        # Decode right channel
-        frame_T_right = decode_channel(
+        # Decode right channel to MDCT coefficients
+        frame_F_right = decode_channel_to_mdct(
             frame_data["chr"],
             frame_type,
-            win_type,
             huff_LUT_list
         )
         
-        # Combine channels: (2048, 2)
-        frame_T = np.column_stack([frame_T_left, frame_T_right])
+        # Combine channels before i_filter_bank (like in level_1 and level_2)
+        if frame_type == "ESH":
+            # For ESH: combine into shape (8, 128, 2)
+            frame_F = np.stack([frame_F_left, frame_F_right], axis=2)
+        else:
+            # For OLS/LSS/LPS: combine into shape (1024, 2)
+            frame_F = np.stack([frame_F_left, frame_F_right], axis=1)
+        
+        # Apply inverse filter bank (IMDCT)
+        frame_T = i_filter_bank(frame_F, frame_type, win_type)
         
         decoded_frames.append(frame_T)
     
@@ -105,9 +112,9 @@ def i_aac_coder_3(aac_seq_3, filename_out):
     return x
 
 
-def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
+def decode_channel_to_mdct(channel_data, frame_type, huff_LUT_list):
     """
-    Decode a single channel.
+    Decode a single channel to MDCT coefficients (before IMDCT).
     
     Parameters
     ----------
@@ -122,24 +129,46 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
     frame_type : str
         Frame type ("OLS", "LSS", "ESH", "LPS")
     
-    win_type : str
-        Window type ("KBD", "SIN")
-    
     huff_LUT_list : list
         Huffman codebook lookup tables
     
     Returns
     -------
-    frame_T : np.ndarray
-        Decoded time-domain frame (2048,)
+    frame_F : np.ndarray
+        MDCT coefficients after inverse quantization and inverse TNS
+        - For OLS/LSS/LPS: shape (1024,)
+        - For ESH: shape (8, 128)
     """
     
     # Extract encoded data
     G = channel_data["G"]
-    sfc_encoded = channel_data["sfc"]
-    stream = channel_data["stream"]
-    codebook = channel_data["codebook"]
+    sfc_stream_raw = channel_data["sfc"]
+    stream_raw = channel_data["stream"]
+    codebook_raw = channel_data["codebook"]
     tns_coeffs = channel_data["tns_coeffs"]
+    
+    # Navigate nested MATLAB arrays to get strings
+    if isinstance(sfc_stream_raw, np.ndarray):
+        temp = sfc_stream_raw
+        while isinstance(temp, np.ndarray) and temp.size > 0:
+            temp = temp.item() if temp.size == 1 else temp[0]
+        sfc_stream = str(temp)
+    else:
+        sfc_stream = str(sfc_stream_raw)
+    
+    if isinstance(stream_raw, np.ndarray):
+        temp = stream_raw
+        while isinstance(temp, np.ndarray) and temp.size > 0:
+            temp = temp.item() if temp.size == 1 else temp[0]
+        stream = str(temp)
+    else:
+        stream = str(stream_raw)
+    
+    # Extract codebook index
+    if isinstance(codebook_raw, np.ndarray):
+        codebook = int(codebook_raw.item() if codebook_raw.size == 1 else codebook_raw.flatten()[0])
+    else:
+        codebook = int(codebook_raw)
     
     # Determine expected lengths based on frame type
     if frame_type == "ESH":
@@ -149,27 +178,26 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
         expected_S_len = 1024
         expected_sfc_len = 69
     
-    # Huffman decode scale factors (always codebook 11)
-    sfc_flat = decode_huff(sfc_encoded, huff_LUT_list[11])
-    # Ensure correct length
-    if len(sfc_flat) > expected_sfc_len:
-        sfc_flat = sfc_flat[:expected_sfc_len]
-    elif len(sfc_flat) < expected_sfc_len:
-        # Pad with zeros if needed
-        sfc_flat = np.pad(sfc_flat, (0, expected_sfc_len - len(sfc_flat)), mode='constant')
-    
-    # Huffman decode MDCT coefficients
+    # Decode MDCT coefficients using safe Huffman decoder
     if codebook == 0:
-        # All-zero section
         S_flat = np.zeros(expected_S_len, dtype=int)
     else:
-        S_flat = decode_huff(stream, huff_LUT_list[codebook])
+        S_decoded = safe_decode_huff(stream, huff_LUT_list[codebook], max_symbols=expected_S_len)
+        S_flat = np.array(S_decoded, dtype=int)
         # Ensure correct length
         if len(S_flat) > expected_S_len:
             S_flat = S_flat[:expected_S_len]
         elif len(S_flat) < expected_S_len:
-            # Pad with zeros if needed
             S_flat = np.pad(S_flat, (0, expected_S_len - len(S_flat)), mode='constant')
+    
+    # Decode scale factors using safe Huffman decoder (codebook 11)
+    sfc_decoded = safe_decode_huff(sfc_stream, huff_LUT_list[11], max_symbols=expected_sfc_len)
+    sfc_flat = np.array(sfc_decoded, dtype=int)
+    # Ensure correct length
+    if len(sfc_flat) > expected_sfc_len:
+        sfc_flat = sfc_flat[:expected_sfc_len]
+    elif len(sfc_flat) < expected_sfc_len:
+        sfc_flat = np.pad(sfc_flat, (0, expected_sfc_len - len(sfc_flat)), mode='constant')
     
     # Reshape S and sfc based on frame type
     if frame_type == "ESH":
@@ -177,9 +205,9 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
         S = S_flat.reshape((128, 8))
         sfc = sfc_flat.reshape((42, 8))
     else:
-        # OLS/LSS/LPS: (1024,) -> (1024, 1), (69,) -> (69, 1)
-        S = S_flat.reshape((1024, 1))
-        sfc = sfc_flat.reshape((69, 1))
+        # OLS/LSS/LPS: keep as 1D for consistency with quantizer
+        S = S_flat
+        sfc = sfc_flat
     
     # Inverse quantization
     frame_F_tns = i_aac_quantizer(S, sfc, G, frame_type)
@@ -187,7 +215,10 @@ def decode_channel(channel_data, frame_type, win_type, huff_LUT_list):
     # Inverse TNS
     frame_F = i_tns(frame_F_tns, frame_type, tns_coeffs)
     
-    # Inverse filter bank (IMDCT)
-    frame_T = i_filter_bank(frame_F, frame_type, win_type)
-    
-    return frame_T
+    # Return MDCT coefficients
+    # For ESH: shape (128, 8) -> transpose to (8, 128) to match level_1/level_2
+    if frame_type == "ESH":
+        return frame_F.T  # (128, 8) -> (8, 128)
+    else:
+        # For long frames, flatten to (1024,)
+        return frame_F.flatten()

@@ -87,6 +87,8 @@ def aac_quantizer(frame_F, frame_type, SMR):
             maxX = np.max(np.abs(X))
             if maxX > 0:
                 a_init = (16/3) * np.log2((maxX ** (3/4)) / MQ)
+                # Limit initial scale factor to prevent overflow
+                a_init = np.clip(a_init, -50, 50)
             else:
                 a_init = 0
             
@@ -146,9 +148,12 @@ def aac_quantizer(frame_F, frame_type, SMR):
             
             # --- 6. Global gain and DPCM scale factors ---
             G[sf] = a[0]
-            sfc[0, sf] = int(a[0])
+            # Clip to [-16, 16] which is maxAbsCodeVal for codebook 11 with nTupleSize=2
+            sfc[0, sf] = int(np.clip(a[0], -16, 16))
             for b in range(1, NB):
-                sfc[b, sf] = int(a[b] - a[b-1])
+                # Compute DPCM and clip to [-16, 16]
+                dpcm_val = int(a[b] - a[b-1])
+                sfc[b, sf] = int(np.clip(dpcm_val, -16, 16))
         
         return S, sfc, G
     
@@ -182,6 +187,8 @@ def aac_quantizer(frame_F, frame_type, SMR):
         maxX = np.max(np.abs(X))
         if maxX > 0:
             a_init = (16/3) * np.log2((maxX ** (3/4)) / MQ)
+            # Limit initial scale factor to prevent overflow
+            a_init = np.clip(a_init, -50, 50)
         else:
             a_init = 0
         
@@ -216,14 +223,19 @@ def aac_quantizer(frame_F, frame_type, SMR):
                     Pe += (X[k] - X_hat) ** 2
                 
                 # Check if error is below threshold
-                if Pe <= T[b]:
+                # Ensure Pe and T[b] are scalars for comparison
+                Pe_scalar = float(Pe)
+                T_scalar = float(T[b])
+                if Pe_scalar <= T_scalar:
                     break
                 
                 # Increase scale factor
                 a[b] += 1
                 
-                # Safety check: prevent excessive scale factor differences
+                # Safety check: prevent excessive scale factor differences and absolute values
                 if b > 0 and np.abs(a[b] - a[b-1]) > 60:
+                    break
+                if np.abs(a[b]) > 100:  # Absolute limit to prevent overflow
                     break
                 
                 iteration += 1
@@ -241,9 +253,12 @@ def aac_quantizer(frame_F, frame_type, SMR):
         
         # --- 6. Global gain and DPCM scale factors ---
         G = a[0]
-        sfc[0] = int(a[0])
+        # Clip to [-16, 16] which is maxAbsCodeVal for codebook 11 with nTupleSize=2
+        sfc[0] = int(np.clip(a[0], -16, 16))
         for b in range(1, NB):
-            sfc[b] = int(a[b] - a[b-1])
+            # Compute DPCM and clip to [-16, 16]
+            dpcm_val = int(a[b] - a[b-1])
+            sfc[b] = int(np.clip(dpcm_val, -16, 16))
         
         # Reshape S to (1024, 1) for consistency
         S = S.reshape(1024, 1)

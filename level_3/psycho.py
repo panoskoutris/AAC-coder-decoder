@@ -134,6 +134,12 @@ def psycho(frame_T, frame_type, frame_T_prev_1, frame_T_prev_2):
         else:
             SMR[:, 0] = SMR_subframe
     
+    # Return appropriate shape
+    # For ESH: (42, 8)
+    # For others: (69,) - flatten to 1D
+    if frame_type != "ESH":
+        SMR = SMR.flatten()
+    
     return SMR
 
 

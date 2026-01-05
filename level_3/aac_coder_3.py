@@ -224,15 +224,15 @@ def encode_channel(S, sfc, G, frame_type, huff_LUT_list):
     S_flat = S.flatten().astype(int)
     sfc_flat = sfc.flatten().astype(int)
     
-    # Huffman encode entire S frame (all subframes together for ESH)
+    # Huffman encode MDCT coefficients (NO padding - decoder will handle truncation)
     stream, codebook = encode_huff(S_flat, huff_LUT_list)
     
-    # Huffman encode scale factors (always use codebook 11)
-    sfc_encoded = encode_huff(sfc_flat, huff_LUT_list, force_codebook=11)
+    # Huffman encode scale factors with codebook 11 (NO padding)
+    sfc_stream = encode_huff(sfc_flat, huff_LUT_list, force_codebook=11)
     
     return {
         "G": G,
-        "sfc": sfc_encoded,
+        "sfc": sfc_stream,
         "stream": stream,
         "codebook": codebook
     }
