@@ -808,6 +808,16 @@ def compute_smr(e_band, npart):
     # Avoid division by zero
     npart_safe = np.where(npart > 1e-10, npart, 1e-10)
     
+    # *** TUNING CONSTANT ***
+    # Allow more noise under the masker for better compression
+    # +3 dB = 2x more noise power, +6 dB = 4x more noise power
+    NOISE_RELAX_DB = 6.0  # Sweet spot for compression vs quality
+    relax_lin = 10**(NOISE_RELAX_DB / 10.0)
+    
+    # Raise masking threshold (more noise allowed)
+    npart_safe *= relax_lin
+    
+    # Calculate SMR (smaller SMR => quantizer uses fewer bits)
     SMR = e_band / npart_safe
     
     return SMR

@@ -51,6 +51,7 @@ def aac_quantizer(frame_F, frame_type, SMR):
     # Constants
     MagicNumber = 0.4054
     MQ = 8191
+    NOISE_MARGIN = 2.0  # Allow 2.0x more noise to improve compression (sweet spot)
     
     # Load scalefactor bands
     bands_long, bands_short = load_table_B219()
@@ -126,9 +127,9 @@ def aac_quantizer(frame_F, frame_type, SMR):
                         # Accumulate squared error
                         Pe += (X[k] - X_hat) ** 2
                     
-                    # Check if error exceeds threshold
-                    # If Pe > T, we've reached the limit, stop
-                    if Pe > T[b]:
+                    # Check if error exceeds threshold (with noise margin)
+                    # If Pe > NOISE_MARGIN * T, we've reached the limit, stop
+                    if Pe > NOISE_MARGIN * T[b]:
                         break
                     
                     # If Pe <= T, we can use coarser quantization (save more bits)
@@ -242,9 +243,9 @@ def aac_quantizer(frame_F, frame_type, SMR):
                     # Accumulate squared error
                     Pe += (X[k] - X_hat) ** 2
                 
-                # Check if error exceeds threshold
-                # If Pe > T, we've reached the limit, stop
-                if Pe > T[b]:
+                # Check if error exceeds threshold (with noise margin)
+                # If Pe > NOISE_MARGIN * T, we've reached the limit, stop
+                if Pe > NOISE_MARGIN * T[b]:
                     break
                 
                 # If Pe <= T, we can use coarser quantization (save more bits)
