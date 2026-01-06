@@ -55,7 +55,7 @@ def i_aac_coder_1(aac_seq_1, filename_out):
     total_samples = (num_frames - 1) * hop_size + frame_size
     
     # Initialize output audio buffer
-    audio_output = np.zeros((total_samples, 2), dtype=np.float32)
+    audio_output = np.zeros((total_samples, 2), dtype=np.float64)
     
     # Process each frame
     for i, frame_dict in enumerate(aac_seq_1):

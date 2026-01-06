@@ -32,7 +32,7 @@ def demo_aac_1(filename_in, filename_out):
     
     print(f"Reading input file: {filename_in}")
     # Read the original audio
-    original_audio, sample_rate = sf.read(filename_in, dtype='float32')
+    original_audio, sample_rate = sf.read(filename_in, dtype='float64')
     print(f"  Sample rate: {sample_rate} Hz")
     print(f"  Duration: {len(original_audio)/sample_rate:.2f} seconds")
     print(f"  Channels: {original_audio.shape[1]}")

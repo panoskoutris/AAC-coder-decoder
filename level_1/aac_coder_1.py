@@ -43,7 +43,7 @@ def aac_coder_1(filename_in):
     
     # Read WAV file using soundfile
     # soundfile returns data as float64 normalized to [-1.0, 1.0]
-    audio_data, sample_rate = sf.read(filename_in, dtype='float32')
+    audio_data, sample_rate = sf.read(filename_in, dtype='float64')
     
     # Ensure audio is stereo (2 channels)
     if audio_data.ndim == 1:
