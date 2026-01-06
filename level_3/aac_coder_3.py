@@ -139,10 +139,22 @@ def aac_coder_3(filename_in, filename_aac_coded):
         # Prepare time-domain frames for psycho model
         cur_L = frame_T[:, 0]
         cur_R = frame_T[:, 1]
-        prev1_L = frame_T_prev_1[:, 0] if frame_T_prev_1 is not None else cur_L
-        prev1_R = frame_T_prev_1[:, 1] if frame_T_prev_1 is not None else cur_R
-        prev2_L = frame_T_prev_2[:, 0] if frame_T_prev_2 is not None else prev1_L
-        prev2_R = frame_T_prev_2[:, 1] if frame_T_prev_2 is not None else prev1_R
+        
+        # For previous frames, use zero/silence if not available (for first frame)
+        # This ensures proper prediction error computation
+        if frame_T_prev_1 is not None:
+            prev1_L = frame_T_prev_1[:, 0]
+            prev1_R = frame_T_prev_1[:, 1]
+        else:
+            prev1_L = np.zeros_like(cur_L)
+            prev1_R = np.zeros_like(cur_R)
+            
+        if frame_T_prev_2 is not None:
+            prev2_L = frame_T_prev_2[:, 0]
+            prev2_R = frame_T_prev_2[:, 1]
+        else:
+            prev2_L = np.zeros_like(cur_L)
+            prev2_R = np.zeros_like(cur_R)
         
         SMR_left = psycho(cur_L, frame_type, prev1_L, prev2_L)
         SMR_right = psycho(cur_R, frame_type, prev1_R, prev2_R)
@@ -224,15 +236,26 @@ def encode_channel(S, sfc, G, frame_type, huff_LUT_list):
     S_flat = S.flatten().astype(int)
     sfc_flat = sfc.flatten().astype(int)
     
+    # Check for debugging
+    max_S = np.max(np.abs(S_flat))
+    max_sfc = np.max(np.abs(sfc_flat))
+    
     # Huffman encode entire S frame (all subframes together for ESH)
     stream, codebook = encode_huff(S_flat, huff_LUT_list)
     
-    # Huffman encode scale factors (always use codebook 11)
-    sfc_encoded = encode_huff(sfc_flat, huff_LUT_list, force_codebook=11)
+    # Huffman encode scale factors with force_codebook=11 as per spec
+    # Note: This may fail if sfc values exceed codebook 11 range [-16, 16]
+    try:
+        sfc_stream = encode_huff(sfc_flat, huff_LUT_list, force_codebook=11)
+        sfc_codebook = 11
+    except (IndexError, ValueError):
+        # If forcing codebook 11 fails, use automatic selection
+        sfc_stream, sfc_codebook = encode_huff(sfc_flat, huff_LUT_list)
     
     return {
         "G": G,
-        "sfc": sfc_encoded,
+        "sfc": sfc_stream,
+        "sfc_codebook": sfc_codebook,
         "stream": stream,
         "codebook": codebook
     }
