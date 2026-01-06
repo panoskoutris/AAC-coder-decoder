@@ -139,10 +139,22 @@ def aac_coder_3(filename_in, filename_aac_coded):
         # Prepare time-domain frames for psycho model
         cur_L = frame_T[:, 0]
         cur_R = frame_T[:, 1]
-        prev1_L = frame_T_prev_1[:, 0] if frame_T_prev_1 is not None else cur_L
-        prev1_R = frame_T_prev_1[:, 1] if frame_T_prev_1 is not None else cur_R
-        prev2_L = frame_T_prev_2[:, 0] if frame_T_prev_2 is not None else prev1_L
-        prev2_R = frame_T_prev_2[:, 1] if frame_T_prev_2 is not None else prev1_R
+        
+        # For previous frames, use zero/silence if not available (for first frame)
+        # This ensures proper prediction error computation
+        if frame_T_prev_1 is not None:
+            prev1_L = frame_T_prev_1[:, 0]
+            prev1_R = frame_T_prev_1[:, 1]
+        else:
+            prev1_L = np.zeros_like(cur_L)
+            prev1_R = np.zeros_like(cur_R)
+            
+        if frame_T_prev_2 is not None:
+            prev2_L = frame_T_prev_2[:, 0]
+            prev2_R = frame_T_prev_2[:, 1]
+        else:
+            prev2_L = np.zeros_like(cur_L)
+            prev2_R = np.zeros_like(cur_R)
         
         SMR_left = psycho(cur_L, frame_type, prev1_L, prev2_L)
         SMR_right = psycho(cur_R, frame_type, prev1_R, prev2_R)

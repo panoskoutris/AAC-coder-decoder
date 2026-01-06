@@ -144,10 +144,6 @@ def aac_quantizer(frame_F, frame_type, SMR):
                     
                     iteration += 1
             
-            # Add bias to make quantization coarser (smaller S values = better compression)
-            for b in range(NB):
-                a[b] += 5
-            
             # --- 5. Final quantization with refined scale factors ---
             for b in range(NB):
                 w_low = int(bands[b, 1])
@@ -160,10 +156,6 @@ def aac_quantizer(frame_F, frame_type, SMR):
                         S[k, sf] = -int((np.abs(X[k]) * (2 ** (-0.25 * a[b]))) ** (3/4) + MagicNumber)
                     # Clamp final S as well
                     S[k, sf] = np.clip(S[k, sf], -MQ, MQ)
-                    
-                    # Dead zone: force small values to zero for better compression
-                    if np.abs(S[k, sf]) <= 1:
-                        S[k, sf] = 0
             
             # --- 6. Global gain and DPCM scale factors ---
             G[sf] = a[0]
@@ -267,10 +259,6 @@ def aac_quantizer(frame_F, frame_type, SMR):
                 
                 iteration += 1
         
-        # Add bias to make quantization coarser (smaller S values = better compression)
-        for b in range(NB):
-            a[b] += 5
-        
         # --- 5. Final quantization with refined scale factors ---
         for b in range(NB):
             w_low = int(bands[b, 1])
@@ -284,10 +272,6 @@ def aac_quantizer(frame_F, frame_type, SMR):
                 # Clamp final S as well
                 S[k] = np.clip(S[k], -MQ, MQ)
                 
-                # Dead zone: force small values to zero for better compression
-                if np.abs(S[k]) <= 1:
-                    S[k] = 0
-        
         # --- 6. Global gain and DPCM scale factors ---
         G = a[0]
         # sfc[0] is not encoded - decoder uses G for α(0)
