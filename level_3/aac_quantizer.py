@@ -144,10 +144,11 @@ def aac_quantizer(frame_F, frame_type, SMR):
                     
                     iteration += 1
             
-            # --- COMPRESSION BOOST: Increase all scale factors ---
-            # Higher value = more compression, lower SNR
+            """ 
+            #--- COMPRESSION BOOST: Increase all scale factors ---
+            #Higher value = more compression, lower SNR
             compression_boost = 8.5  
-            a = a + compression_boost
+            a = a + compression_boost"""
             
             # --- 5. Final quantization with refined scale factors ---
             for b in range(NB):
@@ -264,10 +265,11 @@ def aac_quantizer(frame_F, frame_type, SMR):
                 
                 iteration += 1
         
-        # --- COMPRESSION BOOST: Increase all scale factors ---
-        # Higher value = more compression, lower SNR
+        """
+        #--- COMPRESSION BOOST: Increase all scale factors ---
+        #Higher value = more compression, lower SNR
         compression_boost = 8.5  # Try 2, 3, 4, 5 for different compression levels
-        a = a + compression_boost
+        a = a + compression_boost"""
         
         # --- 5. Final quantization with refined scale factors ---
         for b in range(NB):
