@@ -5,13 +5,17 @@ quantization and Huffman coding on the actual audio file.
 """
 
 from demo_aac_3 import demo_aac_3
+import time
 
 
 if __name__ == "__main__":
     # Input and output files
     material_path = "/Users/chris/Desktop/Multimedia_Systems/project_material/material"
     input_file = f"{material_path}/LicorDeCalandraca.wav"
-    output_file = f"{material_path}/LicorDeCalandraca_decoded_level3.wav"
+    
+    # Add timestamp to output filename to avoid macOS audio player cache
+    timestamp = int(time.time())
+    output_file = f"{material_path}/LicorDeCalandraca_decoded_level3_{timestamp}.wav"
     aac_coded_file = f"{material_path}/LicorDeCalandraca_aac_coded.mat"
     
     # Run the demo
@@ -23,4 +27,5 @@ if __name__ == "__main__":
     print(f"SNR:              {SNR:.2f} dB")
     print(f"Bitrate:          {bitrate:.2f} bps ({bitrate/1000:.2f} kbps)")
     print(f"Compression:      {compression:.2f}:1")
+    print(f"\nDecoded file: {output_file}")
     print("="*60)

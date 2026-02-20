@@ -73,4 +73,34 @@ print(f"Error Max: {error_max:.6f}")
 print(f"Duration: {time[-1]:.2f} seconds")
 print(f"Sample rate: {sr} Hz")
 
+# Find the largest error spike
+max_error_idx = np.argmax(np.abs(error))
+max_error_time = time[max_error_idx]
+max_error_value = error[max_error_idx]
+print(f"\nLargest error spike:")
+print(f"  Time: {max_error_time:.4f} seconds (sample {max_error_idx})")
+print(f"  Value: {max_error_value:.6f}")
+print(f"  Magnitude: {np.abs(max_error_value):.6f}")
+
+# Frame analysis (assuming 2048 samples per frame, 50% overlap)
+frame_size = 2048
+hop_size = 1024
+estimated_frame = max_error_idx // hop_size
+print(f"  Estimated frame index: {estimated_frame}")
+
+# Calculate error statistics in a window around the spike
+window_size = 2048
+start_idx = max(0, max_error_idx - window_size // 2)
+end_idx = min(len(error), max_error_idx + window_size // 2)
+window_error = error[start_idx:end_idx]
+window_rms = np.sqrt(np.mean(window_error**2))
+print(f"  RMS in 2048-sample window around spike: {window_rms:.6f}")
+
+# Compare to typical error level (excluding the spike region)
+mask = np.ones(len(error), dtype=bool)
+mask[start_idx:end_idx] = False
+typical_rms = np.sqrt(np.mean(error[mask]**2))
+print(f"  Typical RMS (excluding spike region): {typical_rms:.6f}")
+print(f"  Spike is {window_rms / typical_rms:.1f}x larger than typical error")
+
 plt.show()

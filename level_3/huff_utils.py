@@ -132,7 +132,7 @@ def encode_huff(coeff_sec, huff_LUT_list, force_codebook = None):
         A value of 0 indicates a special all-zero section.
     """
     if force_codebook is not None:
-            return huff_LUT_code_1(huff_LUT_list[force_codebook], coeff_sec)
+            return huff_LUT_code_1(huff_LUT_list[force_codebook], coeff_sec), force_codebook
     
     maxAbsVal = np.max(np.abs(coeff_sec))
 
@@ -381,12 +381,12 @@ def decode_huff(huff_sec, huff_LUT):
                 while b:
                     N += 1
                     b = huff_sec[streamIndex + N]
-                streamIndex += N
+                streamIndex += (N + 1)
                 N4 = N + 4
                 escape_word = huff_sec[streamIndex:streamIndex + N4]
                 escape_value = 2 ** N4 + int("".join(map(str, escape_word)), 2)
                 nTupleDec[idx] = escape_value
-                streamIndex += N4 + 1
+                streamIndex += N4
             # Apply signs again
             nTupleDec[escIndex] *= nTupleSign[escIndex]
 
@@ -397,4 +397,3 @@ def decode_huff(huff_sec, huff_LUT):
 
     return decCoeffs
     
-

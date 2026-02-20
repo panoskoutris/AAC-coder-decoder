@@ -118,60 +118,9 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
     original_trimmed = original_audio[:min_length, :]
     decoded_trimmed = decoded_audio[:min_length, :]
     
-    # Step 1: Remove edge artifacts (first and last 4096 samples per channel)
-    edge_guard = 4096
-    if min_length > 2 * edge_guard:
-        original_trimmed = original_trimmed[edge_guard:-edge_guard, :]
-        decoded_trimmed = decoded_trimmed[edge_guard:-edge_guard, :]
-        print(f"  Removed {edge_guard} edge samples from start and end")
-    
-    # Step 2: Time alignment using cross-correlation (per channel)
-    # We'll align each channel independently and take the average lag
-    lags = []
-    for ch in range(original_trimmed.shape[1]):
-        orig_ch = original_trimmed[:, ch]
-        dec_ch = decoded_trimmed[:, ch]
-        
-        # Compute cross-correlation
-        correlation = np.correlate(orig_ch, dec_ch, mode='full')
-        # Find the lag that maximizes correlation
-        lag = np.argmax(correlation) - (len(dec_ch) - 1)
-        lags.append(lag)
-    
-    avg_lag = int(np.mean(lags))
-    print(f"  Estimated time alignment lag: {avg_lag} samples")
-    
-    # Apply lag correction
-    if avg_lag > 0:
-        # Decoded is delayed, shift it back
-        original_aligned = original_trimmed[avg_lag:, :]
-        decoded_aligned = decoded_trimmed[:-avg_lag, :]
-    elif avg_lag < 0:
-        # Decoded is ahead, shift it forward
-        original_aligned = original_trimmed[:avg_lag, :]
-        decoded_aligned = decoded_trimmed[-avg_lag:, :]
-    else:
-        # No shift needed
-        original_aligned = original_trimmed
-        decoded_aligned = decoded_trimmed
-    
-    # Step 3: Apply optimal gain matching per channel
-    # alpha = sum(original * decoded) / sum(decoded**2)
-    for ch in range(original_aligned.shape[1]):
-        orig_ch = original_aligned[:, ch]
-        dec_ch = decoded_aligned[:, ch]
-        
-        numerator = np.sum(orig_ch * dec_ch)
-        denominator = np.sum(dec_ch ** 2)
-        
-        if denominator > 1e-10:  # Avoid division by zero
-            alpha = numerator / denominator
-            decoded_aligned[:, ch] = alpha * dec_ch
-            print(f"  Channel {ch}: applied gain correction factor {alpha:.6f}")
-    
-    # Step 4: Calculate SNR on aligned and gain-matched signals
-    signal_power = np.mean(original_aligned ** 2)
-    noise = original_aligned - decoded_aligned
+    # Calculate SNR without any tricks - pure comparison
+    signal_power = np.mean(original_trimmed ** 2)
+    noise = original_trimmed - decoded_trimmed
     noise_power = np.mean(noise ** 2)
     
     # Calculate SNR in dB
@@ -180,6 +129,6 @@ def demo_aac_3(filename_in, filename_out, filename_aac_coded):
     else:
         SNR = float('inf')  # Perfect reconstruction
     
-    print(f"  SNR (after alignment and gain matching): {SNR:.2f} dB")
+    print(f"  SNR (full signal, no tricks): {SNR:.2f} dB")
     
     return SNR, bitrate, compression
