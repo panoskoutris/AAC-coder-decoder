@@ -104,7 +104,4 @@ An additional experiment (“compression boost”) reports **6.20:1** compressio
 - No resampling: provide 48 kHz stereo input
 - MDCT/IMDCT are implemented directly and can be slow for long audio
 
-## Authors
 
-- Χρήστος Αλεξόπουλος
-- Παναγιώτης Κούτρης
