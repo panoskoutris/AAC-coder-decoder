@@ -1,4 +1,5 @@
-# AAC Encoder/Decoder in Python (Simplified AAC Pipeline)
+# AAC Encoder/Decoder in Python 
+# (Simplified AAC Pipeline)
 
 Simplified AAC (Advanced Audio Coding) encoder/decoder implemented in Python.
 The project is structured in **three incremental levels** that progressively add core AAC building blocks.
